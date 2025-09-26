@@ -1,0 +1,269 @@
+---
+title: "bootkmeans package"
+author: "Jesse S. Ghashti and Jeffrey L. Andrews"
+date: ' '
+output: rmarkdown::html_vignette
+vignette: >
+  %\VignetteIndexEntry{bootkmeans package}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+---
+
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(message = FALSE,warning = FALSE)
+knitr::opts_chunk$set(
+  collapse = TRUE,
+  comment = "#>"
+)
+library(stats)
+library(MASS)
+library(bootkmeans)
+library(abind)
+library(fclust)
+library(lmtest)
+library(ggplot2)
+library(patchwork)
+```
+
+
+# Introduction
+
+The **bootkmeans** algorithm [1] augments standard \(k\)-means with sequential bootstrap resamples. Each resample fits \(k\)-means and passes its centres forward to initialize the next resample. Across iterations, out-of-bag (OOB) allocations produces fuzzy memberships (row-normalized OOB tallies) and hard labels, and averaged centres over the terminal window of iterations. An adaptive stopping rule uses a Breusch–Godfrey (BG) serial-correlation test [2,3] on the objective trace; when serial correlation is no longer detected at level \(\alpha\), the outer loop terminates.
+
+A brief overview of the method is given as follow, for more information see [1]:
+
+* Bootstrap rows; fit $k$-means, where the first pass uses user-supplied centres or random starts, and subsequent iterations reuse the previous iteration's centres.
+
+* Compute squared Euclidean distance from each original observation to each current centre; allocate to nearest centre; record OOB allocations.
+
+* Track the \(k\)-means objective as the sum of per-row minimum squared distances at each iteration.
+
+* Test for serial correlation in the recent window of objectives using the BG test. If not significant, stop; otherwise continue until a maximum number of iterations..
+
+* Return the final outputs: fuzzy memberships \(\texttt{U}\), hard labels \(\texttt{cluster}\), averaged centres \(\texttt{centers}\), objective trace \(\texttt{soslist}\), and diagnostic \(p\)-value \(\texttt{p.value}\).
+
+# Installing
+
+You can install the released version of **bootkmeans** from [Github](https://github.com/ghashti-j/bootkmeans) with:
+
+```{r, echo = TRUE, eval = FALSE}
+library(devtools)
+install_github("https://github.com/ghashti-j/bootkmeans")
+library(kdml)
+```
+
+## Sample Usage
+
+From the standard clustering dataset \(\texttt{iris}\), we run the \(\texttt{boot.kmeans()}\) function with the true number of groups \(\texttt{groups = 3}\), minimum number of bootstrap iterations before conducting BG-tests of \(\texttt{iterations = 500}\) and up to a maximum \(\texttt{maxsample = 1000}\) bootstrap iterations. The number of random starts and maximum iterations for the \(\texttt{kmeans()}\) algorithm are \(\texttt{itermax = 1000}\) and \(\texttt{nstart = 5}\), respectively. Below we look at some basic functionality.
+
+```{r}
+set.seed(1)
+x <- as.matrix(iris[, -5])
+
+fit <- boot.kmeans(
+  data = x, 
+  groups = 3,
+  iterations = 500,   
+  itermax   = 1000,
+  nstart    = 5,
+  verbose   = FALSE,
+  maxsamp = 1000
+)
+```
+
+We look at the true cluster means of the dataset and compare to the ones obtained from the algorithm run.
+
+```{r}
+cat("bootkmeans centres:\n")
+fit$centers
+
+cat("true cluster centers")
+aggregate(. ~ Species, data = iris, FUN = mean)
+```
+
+We take a look at the the probabilistic cluster memberships for the first 10 observations, which are drawn from clustering 1, knowing these observations are well-separated from the other two clusters.
+
+```{r}
+fit$U[1:10, ]
+```
+
+The remaining two clusters have a higher degree of cluster overlap, which we can see in the first 10 observations of cluster 2:
+
+```{r}
+fit$U[51:60,]
+```
+
+Then we examine the p-value which terminates the algorithm sometime after the first 500 initial bootstrap iterations
+
+```{r}
+cat("\n p-value for BG-test: \n")
+fit$p.value
+```
+
+We can use the function \(\texttt{bootk.hardsoftvis()}\) using our \(\texttt{fit}\) above to create a scatterplot matrix of pairwise variables, coloured by which observations obtain soft (uncertain) cluster assignments (blue) compare to observations which were assigned hard (absolute certainty) assignments (green). From the scatterplot matrix, it is evident that only observations contained in regions of cluster overlap are assigned soft cluster memberships.
+
+```{r, fig.align='center', fig.width=8,fig.height=8}
+bootk.hardsoftvis(x, fit, plotallvars = TRUE)
+```
+
+We can compare contingency matrices between the hard clusters determined by \(\texttt{boot.kmeans()\) to the traditional \(\texttt{kmeans()}\) [4] function from package **stats** [5] and the fuzzy $c$-means algorithm [6] using \(\texttt{FKM()\) from package **fclust** [7]. To do so, we use the included function \(\texttt{compare.clusters()}\) with argument \(\texttt{what = "all"}\), and run all three algorithms. We use the stored results with function \(\texttt{compare.tables()}\) to display the contingency tables.
+
+```{r}
+res <- compare.clusters(
+  data = x, 
+  groups = 3, 
+  nstart = 10,
+  what =  "all"
+)
+
+compare.tables(res, true.labs = iris$Species)
+```
+
+To compare how uncertainty is quantified for \(\texttt{boot.kmeans()\) compared to \(\texttt{FKM()\), we simulate a dataset where we assume true probabilistic cluster assignments rather than hard clusters. We generate a mixture of Gaussians in two dimensions with ten clusters, where nine outer clusters have means equally spaced on a circle of radius six, and one central component is at the origin. All clusters share an identity covariance and have the same number of observations. This creates clear cluster interiors but overlapping borders where posteriors are ambiguous.
+
+Given the known mixture, we compute the true posterior probabilities and define the uncertainty as $1 - \max_{k}U_{i,k}$ for $i$ observations, $k$ clusters and membership matrix $U$, where higher uncertainty values indicate points near cluster overlap regions, or decision boundaries.
+
+```{r}
+set.seed(1)
+numClusters <- 10
+numObsPerCluster <- 30
+radius <- 6
+dim <- 2
+centreNumObs <- numObsPerCluster
+angles <- seq(0, 2 * pi, length.out = numClusters)
+
+outerMean <- t(sapply(1:(numClusters - 1),
+                      function(i) c(radius * cos(angles[i]), 
+                                    radius * sin(angles[i]))))
+centreMean <- c(0, 0)
+allMeans <- rbind(outerMean, centreMean)
+covMat <- diag(1, dim)
+
+data <- do.call(rbind, 
+                c(lapply(1:(numClusters - 1), 
+                         function(i) MASS::mvrnorm(numObsPerCluster, 
+                                                   outerMean[i, ], covMat)),
+                  list(MASS::mvrnorm(centreNumObs, centreMean, covMat))
+))
+
+# within cluster density calculation
+densities <- sapply(1:numClusters, 
+                    function(i) mvtnorm::dmvnorm(data, mean = allMeans[i, ], 
+                                                 sigma = covMat))
+
+totDensity <- rowSums(densities) # overall densities
+U <- densities / totDensity # probabilistic (fuzzy) cluster assignments
+hardU <- apply(U, 1, which.max) # assigning hard cluster labels 
+```
+
+```{r, fig.align='center', fig.width=8,fig.height=8}
+plotDF <- data.frame(X = data[,1],
+                     Y = data[,2],
+                     U = 1- apply(U, 1, max),
+                     Z = factor(hardU))
+
+ggplot(plotDF, aes(x = X, y = Y, col = Z, size = U)) +
+  geom_point() +
+  theme_classic() +
+  coord_equal() +
+  labs(x = expression(X[1]), 
+         y = expression(X[2]), 
+         col = "Hard Cluster",
+         size = "Uncertainty") +
+  theme(panel.border = element_rect(NA, "black", 1))
+```
+
+Now we examine the fuzzy results of both \(\texttt{boot.kmeans()}\) and \(\texttt{FKM()}\) using \(\texttt{ggplot()}\) [8], where observations are sized similarly as above and coloured with the returned hard cluster memberships determined by the respective algorithm
+
+```{r, fig.align='center', fig.width=8,fig.height=8}
+set.seed(1) 
+
+compareFUZZ <- compare.clusters(data, groups = 10)
+BKMres <- compareFUZZ$bkm
+
+BKMplotDF <- data.frame(X = data[,1], Y = data[,2],
+                        U = 1 - apply(BKMres$U, 1, max),
+                        Z = factor(BKMres$clusters))
+
+FKMres <- compareFUZZ$fkm
+FKMplotDF <- data.frame(X = data[,1], Y = data[,2], 
+                        U = 1 - apply(FKMres$U, 1, max),
+                        Z = factor(FKMres$clus[,1]))
+
+cpal <- scales::hue_pal()(10)
+
+mplots <- function(df, title) {
+  ggplot(df, aes(x = X, y = Y, col = Z, size = U)) +
+    geom_point(alpha = 0.85) +
+    coord_equal() +
+    scale_color_manual(values = cpal) +
+    scale_size_continuous(limits = c(0,1), range = c(1,5)) +
+    labs(x = expression(X[1]),
+         y = expression(X[2]),
+         col = "Cluster",
+         size = "Uncertainty",
+         title = title) +
+    theme_classic() +
+    theme(panel.border = element_rect(fill = NA, color = "black"),
+          legend = "bottom")
+}
+
+p1 <- mplots(BKMplotDF, "bootkmeans")
+p2 <- mplots(FKMplotDF, "fuzzy cmeans")
+(p1 + p2) + plot_layout(guides = "collect") &
+  theme(legend.position = "bottom",
+        legend.box = "vertical",
+        legend.box.just = "center")
+
+```
+
+The \(\texttt{boot.kmeans()}\) procedure produces uncertainty estimates that are more closely aligned with the true data-generating process, whereas fuzzy clustering tends to report low uncertainty primarily near cluster centers.
+
+To estimate clustering accuracy, we compute the proportion of correctly classified observations after optimally permuting the cluster labels using \texttt{matchLabels} from package **Thresher** [9]. We sum of the diagonal of the contingency table under the best label permutation, divided by the total number of observations:
+
+```{r}
+cat("Bootkmeans clustering accuracy: \n")
+sum(diag(Thresher::matchLabels(table(BKMres$clusters, hardU))))/nrow(data)
+cat("\nFuzzy cmeans clustering accuracy: \n")
+sum(diag(Thresher::matchLabels(table(FKMres$clus[,1], hardU))))/nrow(data)
+```
+
+Both methods achieve comparable accuracy under this metric. To assess recovery of the fuzzy/probabilistic structure, we compare the true membership matrix with the estimated membership matrices $U$ from each method using the Frobenius Adjusted Rand Index [10], using the included \(\texttt{FARI()}\) function. This index generalizes the Adjusted Rand Index to fuzzy partitions.
+
+```{r}
+cat("Bootkmeans FARI: \n")
+fari(U, BKMres$U)
+cat("\nFuzzy cmeans FARI: \n")
+fari(U, FKMres$U)
+```
+
+Here we see that \(\texttt{boot.kmeans()}\) more accurately captures the underlying probabilistic memberships than fuzzy $c$-means.
+
+**References**
+
+[1] Ghashti, J.S., Andrews, J.L. Thompson, J.R.J., Epp, J. and H.S. Kochar (2025). A bootstrap augmented $k$-means algorithm for fuzzy partitions. Submitted.
+
+[2] Breusch, T.S. (1978). Testing for Autocorrelation in Dynamic Linear Models, _Australian Economic Papers_, 17, 334-355.
+
+[3] Godfrey, L.G. (1978). Testing Against General Autoregressive and Moving Average Error Models when the Regressors Include Lagged Dependent Variables, _Econometrica_, 46, 1293-1301.
+
+[4] R Core Team (2025). _R: A Language and Environment for Statistical Computing_. R Foundation
+  for Statistical Computing, Vienna, Austria.
+
+[5] Hartigan, J.A. and M.A. Wong (1979). Algorithm AS 136: A K-means clustering algorithm. _Applied Statistics_, 28, 100–108.
+
+[6] Bezdek, J.C. (1981). _Pattern recognition with fuzzy objective function algorithms_. New York: Plenum.
+
+[7] Ferraro, M.B., Giordani, P. and A. Serafini (2019). fclust: An R Package for Fuzzy Clustering, _The R Journal_, 11.
+
+[8] Wickham, H. (2016). _ggplot2: Elegant Graphics for Data Analysis_. Springer-Verlag New York.
+
+
+[9] Coombes, K.R. (2025). _Thresher: Threshing and Reaping for Principal Components_. R package version 1.1.5.
+
+[10] Andrews, J.L., Browne, R. and C.D. Hvingelby (2022). On Assessments of Agreement Between Fuzzy Partitions. _Journal Classification_, 39, 326–342. 
+
+
+
+
