@@ -4,8 +4,9 @@ Title: A bootstrap augmented kmeans algorithm for fuzzy partitions
 Version: 1.0.0
 Date: 2025-09-18
 Authors@R: c(person("Jesse S.","Ghashti", email="jesse.ghashti@ubc.ca", role = c("aut", "cre")),
-	     person("Jeffrey L.", "Andrews", email="jeff.andrews@ubc.ca", role = "aut"))
-Author: Jesse S. Ghashti [aut, cre] and Jeffrey L. Andrews [aut]
+	     person("Jeffrey L.", "Andrews", email="jeff.andrews@ubc.ca", role = "aut"),
+	     person("John R.J", "Thompson", email="john.thompson@ubc.ca", role = "aut"))
+Author: Jesse S. Ghashti [aut, cre], Jeffrey L. Andrews [aut], John R.J. Thompson [aut], Joyce Epp [aut], and Harkunwar S. Kochar [aut[
 Maintainer: Jesse S. Ghashti <jesse.ghashti@ubc.ca>
 Description: Implementation of the bootkmeans algorithm, a bootstrap augmented kmeans algorithm that returns probabilistic cluster assignments. From paper by Ghashti, J.S., Andrews, J.L. Thompson, J.R.J., Epp, J. and H.S. Kochar (2025). A bootstrap augmented $k$-means algorithm for fuzzy partitions. Submitted.
 License: GPL-2
@@ -15,4 +16,4 @@ Imports: MASS, stats, fclust, Thresher, mvtnorm
 Suggests: knitr, markdown, ggplot2, patchwork, scales
 VignetteBuilder: knitr
 NeedsCompilation: no
-Packaged: 2025-09-26 22:45:46 UTC; jesseghashti
+Packaged: 2025-09-20 23:31:04 UTC; jesseghashti

@@ -4,7 +4,7 @@
 \title{Frobenius Adjusted Rand Indice for Comparing Two Partition Matrices}
 
 \description{
-Computes fuzzy generalizations of the  Adjusted Rand Index based on Frobenius inner products of membership matrices. These measures extend the classical indices to compare both hard and fuzzy partitions.
+Computes fuzzy generalizations of the  Adjusted Rand Index based on Frobenius inner products of membership matrices. These measures extends the Adjusted Rand Index to compare fuzzy partitions.
 }
 
 \usage{
@@ -22,7 +22,9 @@ A single numeric value
 }
 
 \references{
-Andrews, J.L., Browne, R. and C.D. Hvingelby (2022). On Assessments of Agreement Between Fuzzy Partitions. \emph{Journal Classification, 39}, 326–342.
+Andrews, J.L., Browne, R. and C.D. Hvingelby (2022). On Assessments of Agreement Between Fuzzy Partitions. \emph{Journal of Classification, 39}, 326–342.
+
+J.L. Andrews, FARI (2013). GitHub repository, \href{https://github.com/its-likeli-jeff/FARI}{https://github.com/its-likeli-jeff/FARI}
 }
 
 

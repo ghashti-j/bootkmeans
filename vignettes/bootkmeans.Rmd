@@ -1,6 +1,6 @@
 ---
-title: "bootkmeans package"
-author: "Jesse S. Ghashti and Jeffrey L. Andrews"
+title: "bootkmeans: Bootstrap Augmented k-Means Algorithm for Parameter-less Fuzzy Clustering"
+author: "Jesse S. Ghashti, Jeffrey L. Andrews, John R.J. Thompson, Joyce Epp, and Harkunwar S. Kochar"
 date: ' '
 output: rmarkdown::html_vignette
 vignette: >
@@ -229,7 +229,7 @@ cat("\nFuzzy cmeans clustering accuracy: \n")
 sum(diag(Thresher::matchLabels(table(FKMres$clus[,1], hardU))))/nrow(data)
 ```
 
-Both methods achieve comparable accuracy under this metric. To assess recovery of the fuzzy/probabilistic structure, we compare the true membership matrix with the estimated membership matrices $U$ from each method using the Frobenius Adjusted Rand Index [10], using the included \(\texttt{FARI()}\) function. This index generalizes the Adjusted Rand Index to fuzzy partitions.
+Both methods achieve comparable accuracy under this metric. To assess recovery of the fuzzy/probabilistic structure, we compare the true membership matrix with the estimated membership matrices $U$ from each method using the Frobenius Adjusted Rand Index [10], using the included \(\texttt{FARI()}\) function adapted from [11]. This index generalizes the Adjusted Rand Index to fuzzy partitions.
 
 ```{r}
 cat("Bootkmeans FARI: \n")
@@ -262,8 +262,8 @@ Here we see that \(\texttt{boot.kmeans()}\) more accurately captures the underly
 
 [9] Coombes, K.R. (2025). _Thresher: Threshing and Reaping for Principal Components_. R package version 1.1.5.
 
-[10] Andrews, J.L., Browne, R. and C.D. Hvingelby (2022). On Assessments of Agreement Between Fuzzy Partitions. _Journal Classification_, 39, 326–342. 
+[10] Andrews, J.L., Browne, R. and C.D. Hvingelby (2022). On Assessments of Agreement Between Fuzzy Partitions. _Journal of Classification_, 39, 326–342. 
 
-
+[11] J.L. Andrews, FARI (2013). GitHub repository, [https://github.com/its-likeli-jeff/FARI]{https://github.com/its-likeli-jeff/FARI}
 
 
